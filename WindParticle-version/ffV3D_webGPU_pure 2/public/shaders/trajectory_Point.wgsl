@@ -155,10 +155,10 @@ fn vMain(vsInput: VertexInput) -> VertexOutput {
     var vertexPos = cn_pos_CS;
 
     /// offset to build a small shape  for one particle
-    let fillWidth = 1.0;
-    let aaWidth = 1.0;
+    // let fillWidth = 1.0;
+    // let aaWidth = 1.0;
     let vertexPos_xy_SS = vertexPos.xy/vertexPos.w ;// x,y   in Screen Space
-    let r = (fillWidth + aaWidth*2.0);
+    let r = (flowUniform.fillWidth + flowUniform.aaWidth*2.0);
     let screenOfs = r / 2.0 * box[vsInput.vertexIndex];//vec2f
     let vertexPos_xy_Ofset = vertexPos_xy_SS + screenOfs / vec2f(flowUniform.canvasSize);
     

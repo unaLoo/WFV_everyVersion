@@ -147,9 +147,9 @@ fn cMain(@builtin(global_invocation_id) id: vec3u)
         //3.count
         let layerAfterSimu = getLayerID(simuResult.z);
 
-        if(layerAfterSimu != ublock.layerInfo.layerNum+1)
-        {
+        // if(layerAfterSimu != ublock.layerInfo.layerNum+1)
+        // {
             updateLayeredParticleCount(layerAfterSimu);
-        }
+        // }
     }
 }

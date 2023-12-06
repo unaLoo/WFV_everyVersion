@@ -248,9 +248,11 @@ export class FlowFieldManager {
         ffFolder.add(ffController, 'isUnsteady', true).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
         // ffFolder.add(ffController, 'progressRate', 0.0, 1.0, 0.001).onFinishChange(()=>{this.updateProgress = true});
         ffFolder.add(ffController, 'speedFactor', 0.0, 10.0, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
-        ffFolder.add(ffController, 'dropRate', 0.0, MAX_DORP_RATE, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
-        ffFolder.add(ffController, 'dropRateBump', 0.0, MAX_DORP_RATE_BUMP, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
+        // ffFolder.add(ffController, 'dropRate', 0.0, MAX_DORP_RATE, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
+        // ffFolder.add(ffController, 'dropRateBump', 0.0, MAX_DORP_RATE_BUMP, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
         ffFolder.add(ffController, 'particleNum', 1, MAX_STREAMLINE_NUM, 1.0).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
+        ffFolder.add(ffController, 'fillWidth', 0.0, 30.0, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
+        ffFolder.add(ffController, 'aaWidth', 0.0, 30.0, 0.001).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});
         ffFolder.open();
         // const slFolder = gui.addFolder('Trajectory');
         // slFolder.add(ffController, 'lineNum', 1, MAX_STREAMLINE_NUM, 1.0).onChange(()=>{this.updateWorkerSetting = true; ffController.needUpdate = true;});

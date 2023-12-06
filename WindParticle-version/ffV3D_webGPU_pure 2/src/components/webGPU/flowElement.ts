@@ -235,6 +235,8 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         return deviceInstance!.device!;
     });
 
+    console.log("Limits::",device.limits);
+    
     // Create canvas context for WebGPU
     canvas = document.getElementById("WebGPUFrame")! as HTMLCanvasElement;
     context = canvas.getContext("webgpu")!;
