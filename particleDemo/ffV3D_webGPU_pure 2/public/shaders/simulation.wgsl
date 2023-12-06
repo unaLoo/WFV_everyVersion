@@ -258,16 +258,7 @@ fn cMain(@builtin(global_invocation_id) id: vec3<u32>) {
         rebirth(0, particleIndex, 0, particleInfo, particlePos);
     }
 
-    // if(particlePos.z < 0.01){
-    //     simulation(0, particleIndex, 0, particleInfo, particlePos);
-    // }
-    // else if (abs(particlePos.z - 0.01)<0.00001){
-    //     die(0, particleIndex, 0, particleInfo, particlePos);
-    // }
-    // else{
-    //     rebirth(0, particleIndex, 0, particleInfo, particlePos);
-    // }
-    
+
 
 
     if ((particleIndex < flowUniform.particleNum) ) {//q
