@@ -726,7 +726,6 @@ const Myrender = async (matrix: Array<number>) => {
             totalHeight: totalHeight * unitHeight,
             heightArrayLength: heightArrayLength,
             unitHeight: unitHeight,
-
         }
     })
     device.queue.writeBuffer(uniformbuffer, 0, C_uniformValues.arrayBuffer);

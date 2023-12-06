@@ -99,7 +99,7 @@ fn vMain(input:VertexInput)
 
     let speedRate = GetSpeedRate(vertexAds);
     var output:VertexOutput;
-    output.position = vec4f(vertexPos_xy_Ofset*vertexPos.w,vertexPos.zw);
+    output.position = vec4f(vertexPos_xy_Ofset * vertexPos.w, vertexPos.zw);
     output.speedRate = speedRate;
     
     return output;
