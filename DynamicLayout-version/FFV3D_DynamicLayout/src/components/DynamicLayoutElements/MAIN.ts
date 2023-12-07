@@ -763,7 +763,7 @@ const Myrender = async (matrix: Array<number>) => {
     computePass2.dispatchWorkgroups(groupNum_x, groupNum_y, 1);
 
     computePass2.end();
-
+    
 
     /////////////////////////// RENDER PHASE ///////////////////////////
     context.canvas.width = (context.canvas as HTMLCanvasElement).clientWidth;
