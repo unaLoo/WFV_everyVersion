@@ -155,8 +155,7 @@ fn vMain(vsInput: VertexInput) -> VertexOutput {
     var vertexPos = cn_pos_CS;
 
     /// offset to build a small shape  for one particle
-    // let fillWidth = 1.0;
-    // let aaWidth = 1.0;
+
     let vertexPos_xy_SS = vertexPos.xy/vertexPos.w ;// x,y   in Screen Space
     let r = (flowUniform.fillWidth + flowUniform.aaWidth*2.0);
     let screenOfs = r / 2.0 * box[vsInput.vertexIndex];//vec2f
@@ -214,10 +213,10 @@ fn fMain(fsInput: VertexOutput) -> @location(0) vec4f {
     // let alpha = 1.0;
 
     let color = velocityColor(fsInput.speedRate, rampColors0);
-    if (fsInput.speedRate < 0.05)
-    {
-        alpha = 0.0;
-    }
+    // if (fsInput.speedRate < 0.05)
+    // {
+    //     alpha = 0.0;
+    // }
     return vec4f(color, 1.0) * alpha;
     // let out = vec4f(1.0, 1.0, 1.0, 1.0) * alpha * fsInput.alphaDegree;
     // return vec4f(out.xyz, out.w * 0.2);

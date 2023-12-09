@@ -212,16 +212,16 @@ fn simulation(particleIndex: u32, nextIndex: u32, nextOffset: u32, particleInfo:
 
 }
 
-fn freeze(particleIndex: u32, nextIndex: u32, nextOffset: u32, particleInfo: vec2f, particlePos:vec3f) {
+// fn freeze(particleIndex: u32, nextIndex: u32, nextOffset: u32, particleInfo: vec2f, particlePos:vec3f) {
 
-    // stay here , no change
-    // particlePosition[3 * nextIndex] = particlePos.x;
-    // particlePosition[3 * nextIndex + 1] = particlePos.y;
-    // particlePosition[3 * nextIndex + 2] = particlePos.z;
+//     // stay here , no change
+//     // particlePosition[3 * nextIndex] = particlePos.x;
+//     // particlePosition[3 * nextIndex + 1] = particlePos.y;
+//     // particlePosition[3 * nextIndex + 2] = particlePos.z;
     
-    particleAge[nextIndex] = particleInfo.x + 1.0;
-    particleAttribute[nextIndex] = particleInfo.y;
-}
+//     particleAge[nextIndex] = particleInfo.x + 1.0;
+//     particleAttribute[nextIndex] = particleInfo.y;
+// }
 
 fn rebirth(particleIndex: u32, nextIndex: u32, nextOffset: u32, particleInfo: vec2f, particlePos:vec3f) {
 
@@ -236,9 +236,7 @@ fn rebirth(particleIndex: u32, nextIndex: u32, nextOffset: u32, particleInfo: ve
 @compute @workgroup_size(blockSize, blockSize, 1)
 fn cMain(@builtin(global_invocation_id) id: vec3<u32>) {
 
-
     let particleIndex = id.y * flowUniform.groupSize.x * blockSize + id.x;
-
 
     let particlePos = vec3f(particlePosition[3 * particleIndex], particlePosition[3 * particleIndex + 1],particlePosition[3 * particleIndex + 2]);
     let currentAge = particleAge[particleIndex];

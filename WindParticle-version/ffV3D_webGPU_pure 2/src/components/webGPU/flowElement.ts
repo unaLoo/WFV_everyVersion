@@ -49,6 +49,7 @@ let startReadIndex = 0;        // 0 -> 1 -> 2 -> ... -> MAX_SEGMENT_NUM - 1 -> 0
 let startStorageIndex = 1;     // 1 -> 2 -> ... -> MAX_SEGMENT_NUM - 1 -> 0 -> 1
 let textureArraySize = 3.0;
 
+let debugCount = 0;
 let uniformView: StructuredView;
 
 // ---------- GPU-Related Configuration --------- //
@@ -61,6 +62,8 @@ let context: GPUCanvasContext;
 // Shader
 let shader_c: GPUShaderModule;
 let shader_r: GPUShaderModule;
+let shader_dist:GPUShaderModule;
+let shader_sort: GPUShaderModule;
 
 // Vertex bindings
 let vertexBuffer: GPUBuffer;
@@ -97,15 +100,27 @@ let positionBuffer: GPUBuffer;
 let attributeBuffer: GPUBuffer;
 let aliveIndexBuffer: GPUBuffer;
 
+let cameraDistBuffer: GPUBuffer;
+let renderIndexBuffer: GPUBuffer;
+
 let storageBindGroup_c: GPUBindGroup;
 let storageBindGroup_r: GPUBindGroup;
+let storageBindGroup_dist: GPUBindGroup;
+let storageBindGroup_sort: GPUBindGroup;
 let storageBindGroupLayout_c: GPUBindGroupLayout;
 let storageBindGroupLayout_r: GPUBindGroupLayout;
+let storageBindGroupLayout_dist: GPUBindGroupLayout;
+let storageBindGroupLayout_sort: GPUBindGroupLayout;
+
 
 // Pipeline
 let pipeline_c: GPUComputePipeline;
+let pipeline_dist: GPUComputePipeline;
+let pipeline_sort: GPUComputePipeline;
 let pipeline_r: GPURenderPipeline;
 let pipelineLayout_c: GPUPipelineLayout;
+let pipelineLayout_dist: GPUPipelineLayout;
+let pipelineLayout_sort: GPUPipelineLayout;
 let pipelineLayout_r: GPUPipelineLayout;
 
 // Render bundle
@@ -226,6 +241,7 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
     await parser.Parsing();
 
     MAX_PARTICLE_NUM = parser.maxTrajectoryNum;
+    console.log("MAX_PARTICLE_NUM",MAX_PARTICLE_NUM);   
     MAX_SEGMENT_NUM = parser.maxSegmentNum;
     FLOW_BOUNDARY = parser.flowBoundary;
     
@@ -278,10 +294,13 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
 
     // Create shader
     shader_r = (await loadShader(device, "/shaders/trajectory_Point.wgsl", "shader for render pass")).shader;
-
     let shaderRsults = await loadShader(device, "/shaders/simulation.wgsl", "shader for compute pass");
     shader_c = shaderRsults.shader;
     let shaderCode = shaderRsults.shaderCode;
+
+    shader_dist = (await loadShader(device, "/shaders/buildzArray.wgsl", "shader for data build")).shader;
+    
+    shader_sort = (await loadShader(device, "/shaders/paraSort.wgsl", "shaders for sort")).shader;
 
     // Create vertex buffer
     const vertices = new Float32Array([
@@ -378,10 +397,32 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
     });
     device.queue.writeBuffer(aliveNumBuffer, 0, new Uint32Array([0]));
 
+    cameraDistBuffer = device.createBuffer({
+        label: "cameraDistBuffer",
+        size: MAX_PARTICLE_NUM * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    })
+    device.queue.writeBuffer(cameraDistBuffer, 0, new Float32Array(MAX_PARTICLE_NUM).fill(0.1));
+
+    let renderIndexInitData = new Uint32Array(MAX_PARTICLE_NUM);
+    for(let i=0 ;i<renderIndexInitData.length ;i++){
+        renderIndexInitData[i] = i;
+    }
+    console.log(renderIndexInitData);
+    
+    renderIndexBuffer = device.createBuffer({
+        label: "renderIndexBuffer",
+        size: MAX_PARTICLE_NUM * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    })
+    device.queue.writeBuffer(renderIndexBuffer, 0, renderIndexInitData);
+
+
+
     // Create map buffer
     mapBuffer = device.createBuffer({
         label: "map buffer",
-        size: defaultPositions.byteLength / 2,
+        size: MAX_PARTICLE_NUM * 4,
         usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });
 
@@ -499,6 +540,7 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         ],
     });
 
+
     storageBindGroupLayout_c = device.createBindGroupLayout({
         label: "binding group layout for storage in compute pass",
         entries: [
@@ -549,6 +591,43 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
                 buffer: {type: "read-only-storage"}
             },
         ],
+    });
+
+    storageBindGroupLayout_dist = device.createBindGroupLayout({
+        label: "binding group layout for storage in camaera dist compute pass",
+        entries: [
+            {
+                binding: 0,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {type: "read-only-storage"}
+            },
+            {
+                binding: 1,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {type: "read-only-storage"}
+            },
+            {
+                binding: 2,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {type: "storage"}
+            },
+        ],
+    });
+
+    storageBindGroupLayout_sort = device.createBindGroupLayout({
+        label:"binding group layout for sorting pass",
+        entries: [
+            {
+                binding: 0,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {type: "storage"}
+            },
+            {
+                binding: 1,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {type: "storage"}
+            }
+        ]
     });
 
     // Create binding group
@@ -625,11 +704,30 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         layout: storageBindGroupLayout_r,
         entries: [
             {binding: 0, resource: {buffer: positionBuffer}},
-            {binding: 1, resource: {buffer: aliveIndexBuffer}},
+            {binding: 1, resource: {buffer: renderIndexBuffer}},
             {binding: 2, resource: {buffer: attributeBuffer}},
             
         ]
     });
+
+    storageBindGroup_dist = device.createBindGroup({
+        label:"binding group for camera dist compute pass",
+        layout: storageBindGroupLayout_dist,
+        entries: [
+            {binding: 0, resource: {buffer: positionBuffer}},
+            {binding: 1, resource: {buffer: aliveIndexBuffer}},
+            {binding: 2, resource: {buffer: cameraDistBuffer}},
+        ]
+    })
+
+    storageBindGroup_sort = device.createBindGroup({
+        label:"binding group for sorting pass",
+        layout: storageBindGroupLayout_sort,
+        entries: [
+            {binding: 0, resource: {buffer: cameraDistBuffer}},
+            {binding: 1, resource: {buffer: renderIndexBuffer}}
+        ]
+    })
 
     // Create pipeline layout
     pipelineLayout_c = device.createPipelineLayout({
@@ -640,6 +738,23 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
             storageBindGroupLayout_c, 
         ]
     });
+
+    pipelineLayout_dist = device.createPipelineLayout({
+        label:"pipelineLayout_dist",
+        bindGroupLayouts:[
+            uniformBindGroupLayout,
+            textureBindGroupLayout,
+            storageBindGroupLayout_dist, 
+        ]
+    })
+    
+    pipelineLayout_sort = device.createPipelineLayout({
+        label:"piplineLayout_sort",
+        bindGroupLayouts:[
+            storageBindGroupLayout_sort
+        ]
+    })
+
     pipelineLayout_r = device.createPipelineLayout({
         label: "render pipeline layout",
         bindGroupLayouts: [
@@ -651,7 +766,7 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
 
     // Create compute pipeline
     pipeline_c = device.createComputePipeline({
-        label: "computing pipeline",
+        label: "computing pipeline pipeline_c",
         layout: pipelineLayout_c,
         compute: {
             module: shader_c,
@@ -661,6 +776,54 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
             }
         }
     });
+
+    pipeline_dist = device.createComputePipeline({
+        label: "computing pipeline pipeline_dist",
+        layout: pipelineLayout_dist,
+        compute: {
+            module: shader_dist,
+            entryPoint: "cMain",
+            constants: {
+                blockSize: MAX_WORK_GROUP_BLOCK_SIZE,
+            }
+        }
+    });
+
+    // let pipeline_dist2 = device.createComputePipeline({
+    //     label: "computing pipeline pipeline_dist",
+    //     layout: pipelineLayout_sort,
+    //     compute: {
+    //         module: shader_sort,
+    //         entryPoint: "cMain",
+    //         constants: {
+    //             blockSize: MAX_WORK_GROUP_BLOCK_SIZE,
+    //         }
+    //     }
+    // });
+
+    pipeline_sort = device.createComputePipeline({
+        label: "pipeline_sort",
+        layout: pipelineLayout_sort,
+        compute: {
+            module: shader_sort,
+            entryPoint: "cMain",
+            constants: {
+                blockSize: MAX_WORK_GROUP_BLOCK_SIZE,
+                groupNum: groupNum_x,
+                _arrLength: 0,
+                _cmpOffset: 0,
+                _subSize: 0
+            }
+        }
+    })
+    // let pip_sort = device.createComputePipeline({
+    //     label:"123",
+    //     layout:pipelineLayout_c,
+    //     compute:{
+    //         module: shader_sort,
+    //         entryPoint: "cMain",
+    //     }
+    // })
 
     // Create rendering pipeline
     pipeline_r = device.createRenderPipeline({
@@ -702,11 +865,11 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
                 },
             ],
         },
-        depthStencil: {
-            depthWriteEnabled: true,
-            depthCompare: 'less',
-            format: 'depth24plus',
-        },
+        // depthStencil: {
+        //     depthWriteEnabled: true,
+        //     depthCompare: 'less',
+        //     format: 'depth24plus',
+        // },
         primitive: {
             topology: "triangle-strip"
         },
@@ -729,12 +892,12 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
                 storeOp: "store"
             }
         ],
-        depthStencilAttachment: {
-            view: depthTexture.createView(),
-            depthLoadOp: "clear",
-            depthClearValue: 1.0,
-            depthStoreOp: "store",
-        }
+        // depthStencilAttachment: {
+        //     view: depthTexture.createView(),
+        //     depthLoadOp: "clear",
+        //     depthClearValue: 1.0,
+        //     depthStoreOp: "store",
+        // }
     };
     
     // const renderBundleEncoder = device.createRenderBundleEncoder({
@@ -742,6 +905,11 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
     // });
     // RecordRenderPass(renderBundleEncoder);
     // renderBundle = renderBundleEncoder.finish();
+
+    console.log("blocksize ::", MAX_WORK_GROUP_BLOCK_SIZE);
+    console.log("groupNUM",groupNum_x, groupNum_y);
+    
+    
 
     return true;
 }
@@ -775,12 +943,12 @@ async function updateProgressRate(value: number) {
 async function TickLogic(controller: FlowFieldController, matrix: Array<number>, center: Array<number>) {
 
     needStop = controller.stop;
-
-    if (!needStop) {
-        //one frame , one block ,so add 1
-        startReadIndex = (startReadIndex + 1) % MAX_SEGMENT_NUM;
-        startStorageIndex = (startStorageIndex + 1) % MAX_SEGMENT_NUM;
-    }
+    // device.queue.writeBuffer(cameraDistBuffer, 0, new Uint32Array(MAX_PARTICLE_NUM));
+    // if (!needStop) {
+    //     //one frame , one block ,so add 1
+    //     startReadIndex = (startReadIndex + 1) % MAX_SEGMENT_NUM;
+    //     startStorageIndex = (startStorageIndex + 1) % MAX_SEGMENT_NUM;
+    // }
 
     // segment num no need , for particle
     // if(uniformView.views.segmentNum[0] !== controller.segmentNum) {
@@ -831,7 +999,7 @@ async function TickLogic(controller: FlowFieldController, matrix: Array<number>,
 
 // !!! Start Dash !!!
 async function TickRender(status: Stats) {
-
+    debugCount ++ ;
     // Resize display size
     if (resizeToDisplaySize(device, canvasInfo)) {
         if (canvasInfo.sampleCount === 1) {
@@ -841,7 +1009,7 @@ async function TickRender(status: Stats) {
             (passDescriptor_r.colorAttachments as any)[0].view = canvasInfo.renderTargetView;
             (passDescriptor_r.colorAttachments as any)[0].resolveTarget = context.getCurrentTexture().createView();
         }
-        (passDescriptor_r.depthStencilAttachment as any).view = canvasInfo.depthTexture!.createView();
+        // (passDescriptor_r.depthStencilAttachment as any).view = canvasInfo.depthTexture!.createView();
     }
 
     // Start recoding commands
@@ -859,10 +1027,59 @@ async function TickRender(status: Stats) {
     
         computePass.dispatchWorkgroups(groupNum_x, groupNum_y);
         computePass.end();
-    
         // Copy data in storage buffer to the map buffer
         encoder.copyBufferToBuffer(aliveNumBuffer, 0, indirectBuffer, 4, 4);
     }
+
+    const computeDistPass = encoder.beginComputePass({
+        label: "compute camera dist pass",
+    });
+    computeDistPass.setPipeline(pipeline_dist);
+    computeDistPass.setBindGroup(0, uniformBindGroup);
+    computeDistPass.setBindGroup(1, textureBindGroup);
+    computeDistPass.setBindGroup(2, storageBindGroup_dist);
+    
+    computeDistPass.dispatchWorkgroups(groupNum_x, groupNum_y);
+    computeDistPass.end();
+
+    const BitonicSort = (length: number) => {
+        let subSize, compareOfset;
+        for (subSize = 2; subSize <= length; subSize *= 2) {
+            for (compareOfset = subSize / 2; compareOfset > 0.999; compareOfset /= 2) {
+
+                const pipeline = device?.createComputePipeline({
+                    label: "compute pipeline",
+                    layout: pipelineLayout_sort,
+                    compute: {
+                        module: shader_sort,
+                        entryPoint: "cMain",
+                        constants: {
+                            blockSize: MAX_WORK_GROUP_BLOCK_SIZE,
+                            groupNum: groupNum_x,
+                            _arrLength: length,
+                            _cmpOffset: compareOfset,
+                            _subSize: subSize
+                        }
+                    },
+                })!;
+
+                //this part can be finished by GPU
+                //每个线程就做独立的比较或者交换，各线程互不影响
+                //每个线程：compare(i,i+offset,flag)
+                let aPass = encoder.beginComputePass()!;
+                aPass.setPipeline(pipeline);
+                aPass.setBindGroup(0, storageBindGroup_sort);
+                aPass.dispatchWorkgroups(groupNum_x, groupNum_y, 1);
+                aPass.end();
+
+                // console.log(subSize, compareOfset);
+            }
+        }
+    }
+
+    BitonicSort(MAX_PARTICLE_NUM);
+
+
 
     // Render pass
     const renderPass = encoder.beginRenderPass(passDescriptor_r);
@@ -886,7 +1103,7 @@ async function TickRender(status: Stats) {
     device.queue.submit([encoder.finish()]);
 
 
-    if (0) {
+    if (debugCount % 200 == 1) {
         await Debug();
     }
 
@@ -900,11 +1117,15 @@ async function Tick(controller: FlowFieldController, matrix: Array<number>, cent
 }
 
 async function Debug() {
-
+    console.log("map count :: ");
+    
+    let encoder= device.createCommandEncoder();
+    encoder.copyBufferToBuffer(cameraDistBuffer, 0, mapBuffer, 0, MAX_PARTICLE_NUM*4);
+    device.queue.submit([encoder.finish()]);
     // Map compute results to CPU memory
     await mapBuffer.mapAsync(GPUMapMode.READ);
-    const result = new Uint32Array(mapBuffer.getMappedRange());
-    console.log("map buffer data:", result[0]);
+    const result = new Float32Array(mapBuffer.getMappedRange());
+    console.log("map buffer data:", [...result]);
     mapBuffer.unmap();
 }
 
