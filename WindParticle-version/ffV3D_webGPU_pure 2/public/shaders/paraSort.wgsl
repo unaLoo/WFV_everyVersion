@@ -20,21 +20,25 @@ fn getCompareInfo(id: u32) -> vec3u{
 }
 
 fn compare(id: u32,cmpid: u32,flag: u32){
+
     let now_value = input[id];
     let cmp_value = input[cmpid];
-    let shouldSwap = select(1, 0, ((flag == 0 && now_value < cmp_value) || (flag == 1 && now_value > cmp_value)));
+    let now_index = renderIndexArray[id];
+    let cmp_index = renderIndexArray[cmpid];
 
-    input[id] = select(cmp_value, now_value, shouldSwap == 0);
-    input[cmpid] = select(now_value, cmp_value, shouldSwap == 0);
-
-    let now_index = id;
-    let cmp_index = cmpid;
-    if( now_value>0 && cmp_value>0){
-        renderIndexArray[id] = select(cmp_index, now_index, shouldSwap == 0);
-        renderIndexArray[cmpid] = select(now_index, cmp_index, shouldSwap == 0);
-    }else{
-        renderIndexArray[id] = 0;
-        renderIndexArray[cmpid] = 0;
+    let shouldSwap = select(1, 0, ((flag == 1 && now_value < cmp_value) || (flag == 0 && now_value > cmp_value)));
+   
+    if(shouldSwap == 1){
+        input[id] = cmp_value;
+        renderIndexArray[id] = cmp_index;
+        input[cmpid] = now_value;
+        renderIndexArray[cmpid] = now_index;
+    }
+    else{
+        input[id] = now_value;
+        renderIndexArray[id] = now_index;
+        input[cmpid] = cmp_value;
+        renderIndexArray[cmpid] = cmp_index;
     }
 }
 
@@ -44,10 +48,7 @@ fn compare(id: u32,cmpid: u32,flag: u32){
     let ID = id.x + id.y * groupNum * blockSize;
     let cmpINFO = getCompareInfo(ID);
 
-    if(cmpINFO.x != 0){
+    if(cmpINFO.x == 1){
         compare(ID,cmpINFO.y,cmpINFO.z);//compare(id,cmpid,flag)
     }
-
-    // renderIndexArray[ID] = ID;
-    // input[ID] = f32(ID);
 }

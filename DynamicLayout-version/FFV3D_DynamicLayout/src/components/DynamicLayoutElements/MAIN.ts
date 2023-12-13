@@ -776,6 +776,7 @@ const Myrender = async (matrix: Array<number>) => {
     render_pass.end();
 
 
+
     /////////////////////////// Finish ///////////////////////////
     let commandBuffer = encoder.finish();
     device.queue.submit([commandBuffer]);

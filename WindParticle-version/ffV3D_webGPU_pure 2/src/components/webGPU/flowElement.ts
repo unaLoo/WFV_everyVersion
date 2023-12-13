@@ -92,6 +92,8 @@ let textureBindGroupLayout: GPUBindGroupLayout;
 
 // Storage bindings
 let mapBuffer: GPUBuffer; // use for debug
+let mapBuffer2: GPUBuffer;
+let mapBuffer3: GPUBuffer;
 
 let ageBuffer: GPUBuffer;
 let aliveNumBuffer: GPUBuffer;
@@ -101,7 +103,10 @@ let attributeBuffer: GPUBuffer;
 let aliveIndexBuffer: GPUBuffer;
 
 let cameraDistBuffer: GPUBuffer;
+let cameraDistBufferOG: GPUBuffer;
+
 let renderIndexBuffer: GPUBuffer;
+let renderIndexInitData: Uint32Array;
 
 let storageBindGroup_c: GPUBindGroup;
 let storageBindGroup_r: GPUBindGroup;
@@ -177,9 +182,9 @@ function resizeToDisplaySize(device: GPUDevice, canvasInfo: CanvasInfo) {
         if (renderTarget) {
             renderTarget.destroy();
         }
-        if (depthTexture) {
-            depthTexture.destroy();
-        }
+        // if (depthTexture) {
+        //     depthTexture.destroy();
+        // }
 
         canvas.width = width * window.devicePixelRatio;
         canvas.height = height * window.devicePixelRatio;
@@ -195,14 +200,14 @@ function resizeToDisplaySize(device: GPUDevice, canvasInfo: CanvasInfo) {
             canvasInfo.renderTargetView = newRenderTarget.createView();
         }
 
-        const newDepthTexture = device.createTexture({
-            size: [canvas.width, canvas.height],
-            format: 'depth24plus',
-            sampleCount,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-        canvasInfo.depthTexture = newDepthTexture;
-        canvasInfo.depthTextureView = newDepthTexture.createView();
+        // const newDepthTexture = device.createTexture({
+        //     size: [canvas.width, canvas.height],
+        //     format: 'depth24plus',
+        //     sampleCount,
+        //     usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        // });
+        // canvasInfo.depthTexture = newDepthTexture;
+        // canvasInfo.depthTextureView = newDepthTexture.createView();
     }
 
     return needResize;
@@ -279,6 +284,7 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         format: "depth24plus",
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
+
 
     // Make canvas info
     canvasInfo = {
@@ -403,13 +409,17 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     })
     device.queue.writeBuffer(cameraDistBuffer, 0, new Float32Array(MAX_PARTICLE_NUM).fill(0.1));
+    cameraDistBufferOG = device.createBuffer({
+        label:"cameraDistBufferOG",
+        size: MAX_PARTICLE_NUM * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    })
+    device.queue.writeBuffer(cameraDistBufferOG, 0, new Float32Array(MAX_PARTICLE_NUM).fill(0.1));
 
-    let renderIndexInitData = new Uint32Array(MAX_PARTICLE_NUM);
+    renderIndexInitData = new Uint32Array(MAX_PARTICLE_NUM);
     for(let i=0 ;i<renderIndexInitData.length ;i++){
         renderIndexInitData[i] = i;
     }
-    console.log(renderIndexInitData);
-    
     renderIndexBuffer = device.createBuffer({
         label: "renderIndexBuffer",
         size: MAX_PARTICLE_NUM * 4,
@@ -426,6 +436,16 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });
 
+    mapBuffer2 = device.createBuffer({
+        label: "map buffer",
+        size: MAX_PARTICLE_NUM * 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+    mapBuffer3 = device.createBuffer({
+        label: "map buffer 3",
+        size: MAX_PARTICLE_NUM * 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
     // Create sampler
     nSampler = device.createSampler({
         label: "nearest sampler",
@@ -604,10 +624,15 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
             {
                 binding: 1,
                 visibility: GPUShaderStage.COMPUTE,
-                buffer: {type: "read-only-storage"}
+                buffer: {type: "storage"}
             },
             {
                 binding: 2,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {type: "storage"}
+            },
+            {
+                binding: 3,
                 visibility: GPUShaderStage.COMPUTE,
                 buffer: {type: "storage"}
             },
@@ -704,7 +729,8 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         layout: storageBindGroupLayout_r,
         entries: [
             {binding: 0, resource: {buffer: positionBuffer}},
-            {binding: 1, resource: {buffer: renderIndexBuffer}},
+            // {binding: 1, resource: {buffer: renderIndexBuffer}},
+            {binding: 1, resource: {buffer: aliveIndexBuffer}},
             {binding: 2, resource: {buffer: attributeBuffer}},
             
         ]
@@ -715,8 +741,11 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         layout: storageBindGroupLayout_dist,
         entries: [
             {binding: 0, resource: {buffer: positionBuffer}},
+            // {binding: 1, resource: {buffer: renderIndexBuffer}},
             {binding: 1, resource: {buffer: aliveIndexBuffer}},
+
             {binding: 2, resource: {buffer: cameraDistBuffer}},
+            {binding: 3, resource: {buffer: cameraDistBufferOG}}
         ]
     })
 
@@ -725,7 +754,9 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         layout: storageBindGroupLayout_sort,
         entries: [
             {binding: 0, resource: {buffer: cameraDistBuffer}},
-            {binding: 1, resource: {buffer: renderIndexBuffer}}
+            // {binding: 1, resource: {buffer: renderIndexBuffer}}
+            {binding: 1, resource: {buffer: aliveIndexBuffer}}
+
         ]
     })
 
@@ -846,9 +877,37 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
         fragment: {
             module: shader_r,
             entryPoint: "fMain",
-            targets: [
+            targets: [ 
                 {
                     format: presentationFormat, 
+                    // blend: {
+                    //     color: {
+                    //         operation: "add",
+                    //         srcFactor: "one",
+                    //         dstFactor: "zero",
+                    //     },
+                    //     alpha: {
+                    //         operation: "add",
+                    //         srcFactor: "src-alpha",
+                    //         dstFactor: "one-minus-src-alpha"
+                    //     }
+                    // },
+                    // writeMask: GPUColorWrite.ALL
+
+                    // blend: {
+                    //     color: {
+                    //         operation: "add",
+                    //         srcFactor: "src-alpha",
+                    //         dstFactor: "one-minus-src-alpha"
+                    //     },
+                    //     alpha: {
+                    //         operation: "add",
+                    //         srcFactor:"src-alpha",
+                    //         dstFactor: "one-minus-src-alpha"
+                    //     }
+                    // },
+                    // writeMask:GPUColorWrite.ALL,
+
                     blend: {
                         color: {
                             operation: "add",
@@ -858,18 +917,18 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
                         alpha: {
                             operation: "add",
                             srcFactor: "one",
-                            dstFactor: "one-minus-src-alpha"
+                            dstFactor: "one"
                         }
                     },
                     writeMask: GPUColorWrite.ALL
                 },
             ],
         },
-        // depthStencil: {
-        //     depthWriteEnabled: true,
-        //     depthCompare: 'less',
-        //     format: 'depth24plus',
-        // },
+        depthStencil: {
+            format: 'depth24plus',
+            depthWriteEnabled: true,
+            depthCompare: "less",
+        },
         primitive: {
             topology: "triangle-strip"
         },
@@ -892,12 +951,12 @@ async function Prepare(offscreenCanvas?: {canvas: OffscreenCanvas, width: number
                 storeOp: "store"
             }
         ],
-        // depthStencilAttachment: {
-        //     view: depthTexture.createView(),
-        //     depthLoadOp: "clear",
-        //     depthClearValue: 1.0,
-        //     depthStoreOp: "store",
-        // }
+        depthStencilAttachment: {
+            view: depthTexture.createView(),
+            depthClearValue: 1,
+            depthLoadOp: "clear",//渲染前的深度值为clear value
+            depthStoreOp: "store",//渲染后的深度值,存储
+        }
     };
     
     // const renderBundleEncoder = device.createRenderBundleEncoder({
@@ -995,22 +1054,46 @@ async function TickLogic(controller: FlowFieldController, matrix: Array<number>,
     });
     device.queue.writeBuffer(uniformBuffer, 0, uniformView.arrayBuffer);
     device.queue.writeBuffer(aliveNumBuffer, 0, new Uint32Array([0]));
+
+    // device.queue.writeBuffer(renderIndexBuffer, 0,renderIndexInitData);
+
 }
 
 // !!! Start Dash !!!
 async function TickRender(status: Stats) {
     debugCount ++ ;
-    // Resize display size
-    if (resizeToDisplaySize(device, canvasInfo)) {
-        if (canvasInfo.sampleCount === 1) {
-            const colorTexture = context.getCurrentTexture();
-            (passDescriptor_r.colorAttachments as any)[0].view = colorTexture.createView();
-        } else {
-            (passDescriptor_r.colorAttachments as any)[0].view = canvasInfo.renderTargetView;
-            (passDescriptor_r.colorAttachments as any)[0].resolveTarget = context.getCurrentTexture().createView();
-        }
-        // (passDescriptor_r.depthStencilAttachment as any).view = canvasInfo.depthTexture!.createView();
-    }
+    // // Resize display size
+    // if (resizeToDisplaySize(device, canvasInfo)) {
+    //     if (canvasInfo.sampleCount === 1) {
+    //         const colorTexture = context.getCurrentTexture();
+    //         (passDescriptor_r.colorAttachments as any)[0].view = colorTexture.createView();
+    //     } else {
+    //         (passDescriptor_r.colorAttachments as any)[0].view = canvasInfo.renderTargetView;
+    //         (passDescriptor_r.colorAttachments as any)[0].resolveTarget = context.getCurrentTexture().createView();
+    //     }
+    //     (passDescriptor_r.depthStencilAttachment as any).view = canvasInfo.depthTexture!.createView();
+    // }
+
+    context.canvas.width = canvas.clientWidth;
+    context.canvas.height = canvas.clientHeight;
+    (passDescriptor_r.colorAttachments as any)[0].view = context.getCurrentTexture().createView();
+
+    let depthTexture1 = device.createTexture({
+        label: "depth texture",
+        size: {
+            width: canvas.clientWidth,
+            height: canvas.clientHeight,
+            depthOrArrayLayers: 1,
+        },
+        // mipLevelCount: 1,
+        // sampleCount: 1,
+        // dimension: "2d",
+        format: "depth24plus",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    (passDescriptor_r.depthStencilAttachment as any).view = depthTexture1.createView();
+
+
 
     // Start recoding commands
     const encoder = device.createCommandEncoder({label: "flow visualization encoder"});
@@ -1031,6 +1114,7 @@ async function TickRender(status: Stats) {
         encoder.copyBufferToBuffer(aliveNumBuffer, 0, indirectBuffer, 4, 4);
     }
 
+    // init pass :: cameradist, renderIndex, 
     const computeDistPass = encoder.beginComputePass({
         label: "compute camera dist pass",
     });
@@ -1082,30 +1166,50 @@ async function TickRender(status: Stats) {
 
 
     // Render pass
-    const renderPass = encoder.beginRenderPass(passDescriptor_r);
-    renderPass.setBlendConstant([0.0, 0.0, 0.0, 0.0]);
-    if (false && renderBundles) {
-        renderPass.executeBundles([renderBundle]);
-    }
-    else {
+    // const renderPass = encoder.beginRenderPass(passDescriptor_r);
+    // renderPass.setBlendConstant([0.0, 0.0, 0.0, 0.0]);
+    // if (false && renderBundles) {
+    //     renderPass.executeBundles([renderBundle]);
+    // }
+    // else {
 
-        renderPass.setPipeline(pipeline_r);
-        renderPass.setVertexBuffer(0, vertexBuffer);
-        renderPass.setBindGroup(0, uniformBindGroup);
-        renderPass.setBindGroup(1, textureBindGroup);
-        renderPass.setBindGroup(2, storageBindGroup_r);
+    //     renderPass.setPipeline(pipeline_r);
+    //     renderPass.setVertexBuffer(0, vertexBuffer);
+    //     renderPass.setBindGroup(0, uniformBindGroup);
+    //     renderPass.setBindGroup(1, textureBindGroup);
+    //     renderPass.setBindGroup(2, storageBindGroup_r);
     
-        renderPass.drawIndirect(indirectBuffer, 0);
-    }
-    renderPass.end();
+    //     renderPass.drawIndirect(indirectBuffer, 0);
+    //     // for(let i=0 ;i<MAX_PARTICLE_NUM; i++){
+    //     //     renderPass.draw(4,1,0,i);//绘制第i个实例
+    //     // }
+    //     // renderPass.drawIndexed()
+    // }
+    // renderPass.end();
+
+
+    let renderps = encoder.beginRenderPass(passDescriptor_r);
+    
+    renderps.setPipeline(pipeline_r);
+    renderps.setVertexBuffer(0, vertexBuffer);
+    renderps.setBindGroup(0, uniformBindGroup);
+    renderps.setBindGroup(1, textureBindGroup);
+    renderps.setBindGroup(2, storageBindGroup_r);
+    // for(let i=0; i<MAX_PARTICLE_NUM; i++){
+    //     renderps.draw(4,1,0,i);
+    // }
+    renderps.drawIndirect(indirectBuffer, 0);
+    // renderps.draw(4,262144,0,0)
+    renderps.end();
+
 
     // End recoding commands
     device.queue.submit([encoder.finish()]);
 
 
-    if (debugCount % 200 == 1) {
-        await Debug();
-    }
+    // if (debugCount % 400 == 1) {
+    //     await Debug();
+    // }
 
     status?.update();
 }
@@ -1121,11 +1225,25 @@ async function Debug() {
     
     let encoder= device.createCommandEncoder();
     encoder.copyBufferToBuffer(cameraDistBuffer, 0, mapBuffer, 0, MAX_PARTICLE_NUM*4);
+    encoder.copyBufferToBuffer(renderIndexBuffer, 0, mapBuffer2, 0, MAX_PARTICLE_NUM*4);
+    encoder.copyBufferToBuffer(cameraDistBufferOG, 0, mapBuffer3, 0, MAX_PARTICLE_NUM*4);
+    
     device.queue.submit([encoder.finish()]);
     // Map compute results to CPU memory
+
+    await mapBuffer3.mapAsync(GPUMapMode.READ);
+    const result3 = new Float32Array(mapBuffer3.getMappedRange());
+    console.log("cameraDistBuffer original data:", [...result3]);
+    mapBuffer3.unmap();
+
+    await mapBuffer2.mapAsync(GPUMapMode.READ);
+    const result2 = new Uint32Array(mapBuffer2.getMappedRange());
+    console.log("RenderIndexBuffer data:", [...result2]);
+    mapBuffer2.unmap();
+
     await mapBuffer.mapAsync(GPUMapMode.READ);
     const result = new Float32Array(mapBuffer.getMappedRange());
-    console.log("map buffer data:", [...result]);
+    console.log("Sorted data:", [...result]);
     mapBuffer.unmap();
 }
 

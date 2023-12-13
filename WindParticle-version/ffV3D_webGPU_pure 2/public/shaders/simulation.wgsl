@@ -127,6 +127,7 @@ fn lookup_speed(position: vec3f) -> vec3f {
 
 fn speed_rate(velocity: vec2f) -> f32 {
     
+    // let boundaryStride = vec2f(flowUniform.flowBoundary.z-flowUniform.flowBoundary.x, flowUniform.flowBoundary.w- flowUniform.flowBoundary.y);
     return length(velocity) / length(flowUniform.flowBoundary.zw);
     // return length(velocity - flowUniform.flowBoundary.xy) / length(flowUniform.flowBoundary.zw - flowUniform.flowBoundary.xy);
 }
@@ -258,8 +259,8 @@ fn cMain(@builtin(global_invocation_id) id: vec3<u32>) {
 
 
 
-
-    if ((particleIndex < flowUniform.particleNum) ) {//q
+// && (particleAttribute[particleIndex] < 0.05)
+    if ((particleIndex < flowUniform.particleNum)) {//q
         indexArray[atomicAdd(&aliveNum, 1)] = particleIndex;
     }
 }

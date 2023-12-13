@@ -83,7 +83,8 @@ fn GetColorbySpeedRate(speedRate:f32 , rampColors: array<u32, 8>)
 fn vMain(input:VertexInput)
 ->VertexOutput{
 
-    let box = array(vec2f(0.0,0.0),vec2f(0.0,3.0),vec2f(3.0,0.0),vec2f(3.0,3.0));
+    let width = 3.0;
+    let box = array(vec2f(0.0, 0.0),vec2f(0.0, width),vec2f(width, 0.0),vec2f(width, width));
 
     //这里的Ads是原始粒子位置，基于实例index查找的
     let vertexAds = GetVertexAddress(input.instanceIndex);

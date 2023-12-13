@@ -45,8 +45,10 @@ struct ST{
 
 // Storage bindings
 @group(2) @binding(0) var<storage, read> data_v: array<f32>;
-@group(2) @binding(1) var<storage, read> indexArray_v: array<u32>;
+@group(2) @binding(1) var<storage, read_write> renderIndexArray: array<u32>;
 @group(2) @binding(2) var<storage, read_write> cameraDistArray: array<f32>;
+@group(2) @binding(3) var<storage, read_write> cameraDistOG: array<f32>;
+
 
 override blockSize: u32;
 
@@ -92,7 +94,7 @@ fn get_clip_position_w(address: u32) -> f32 {
     let pos = vec3f(data_v[3 * address], data_v[3 * address + 1], data_v[3 * address + 2]);
     let geoPos = sampleGeoPosition(pos.xy);
     let pos_CS = flowUniform.u_matrix * vec4f(geoPos , pos.z , 1.0);
-    return pos_CS.z;
+    return pos_CS.z / pos_CS.w;
 }
 
 
@@ -103,11 +105,12 @@ fn cMain(input: ST){
     // let bk = blockSize;
     let particleIndex = input.iid.y * flowUniform.groupSize.x * blockSize + input.iid.x;
     // let particleIndex = input.iid.x;
-
+    renderIndexArray[particleIndex] = particleIndex;
     let cameraDist = get_clip_position_w(particleIndex);
 
     //cameraDistArray 对应 particlePool 的顺序
     cameraDistArray[particleIndex] = cameraDist;
+    cameraDistOG[particleIndex] = cameraDist;
     // cameraDistArray[particleIndex] = f32(particleIndex);
 
     // cameraDistArray[0] = f32(input.wnum.x);

@@ -213,11 +213,12 @@ fn fMain(fsInput: VertexOutput) -> @location(0) vec4f {
     // let alpha = 1.0;
 
     let color = velocityColor(fsInput.speedRate, rampColors0);
-    // if (fsInput.speedRate < 0.05)
-    // {
-    //     alpha = 0.0;
-    // }
+    if (fsInput.speedRate < 0.03)
+    {
+        alpha = 0.0;
+    }
     return vec4f(color, 1.0) * alpha;
+    // return vec4f(color, 1.0);
     // let out = vec4f(1.0, 1.0, 1.0, 1.0) * alpha * fsInput.alphaDegree;
     // return vec4f(out.xyz, out.w * 0.2);
 }

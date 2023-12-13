@@ -31,7 +31,9 @@ export class FlowFieldController {
     
     constructor(constraints?: FlowFieldConstraints) {
         // this.lineNum = 262144;
-        this.particleNum = 262144;
+        // this.particleNum = 262144;
+        this.particleNum = 65536;
+
         // this.segmentNum = 16;
         this.segmentNum = 3;
         this.fullLife = this.segmentNum * 10;
@@ -40,7 +42,7 @@ export class FlowFieldController {
         this.dropRate = 0.003;
         this.dropRateBump = 0.001;
         this.fillWidth = 1.0;
-        this.aaWidth = 2.0;
+        this.aaWidth = 1.0;
         this.colorScheme = 0;
         this.isUnsteady = true;
         this.content = "none";
